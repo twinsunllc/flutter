@@ -2282,6 +2282,10 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       final Size size = renderEditable.size;
       final Matrix4 transform = renderEditable.getTransformTo(null);
       _textInputConnection.setEditableSizeAndTransform(size, transform);
+      var textSpan = buildTextSpan();
+      var rects = List.generate(
+          textSpan.text.length, (i) => renderEditable.textPainter.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first);
+      _textInputConnection.setSelectionRects(rects);
       SchedulerBinding.instance
           .addPostFrameCallback((Duration _) => _updateSizeAndTransform());
     }

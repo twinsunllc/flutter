@@ -909,6 +909,20 @@ class TextInputConnection {
     }
   }
 
+  List cachedTextBoxes = [];
+
+  void setSelectionRects(List textBoxes) {
+    var equal = cachedTextBoxes.length == textBoxes.length &&
+        List.generate(textBoxes.length, (i) => textBoxes[i] == cachedTextBoxes[i]).reduce((a, b) => a && b);
+    if (!equal) {
+      cachedTextBoxes = textBoxes;
+      TextInput._instance._setSelectionRects(textBoxes.map((box) {
+        var rect = box.toRect();
+        return <double>[rect.left, rect.top, rect.width, rect.height];
+      }).toList());
+    }
+  }
+
   /// Send text styling information.
   ///
   /// This information is used by the Flutter Web Engine to change the style
@@ -1230,6 +1244,13 @@ class TextInput {
   void _setEditableSizeAndTransform(Map<String, dynamic> args) {
     _channel.invokeMethod<void>(
       'TextInput.setEditableSizeAndTransform',
+      args,
+    );
+  }
+
+  void _setSelectionRects(List<List<double>> args) {
+    _channel.invokeMethod<void>(
+      'TextInput.setSelectionRects',
       args,
     );
   }
