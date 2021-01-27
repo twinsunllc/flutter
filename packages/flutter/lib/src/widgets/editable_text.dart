@@ -1655,7 +1655,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       return;
     } else if (value.text == _value.text && value.composing == _value.composing && value.selection != _value.selection) {
       // `selection` is the only change.
-      _handleSelectionChanged(value.selection, renderEditable, SelectionChangedCause.keyboard);
+      _handleSelectionChanged(value.selection, renderEditable, value.scribbleInProgress ? SelectionChangedCause.scribble : SelectionChangedCause.keyboard);
     } else {
       _formatAndSetValue(value);
     }

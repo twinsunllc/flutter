@@ -61,6 +61,9 @@ enum SelectionChangedCause {
   /// The user used the mouse to change the selection by dragging over a piece
   /// of text.
   drag,
+
+  /// The user iPadOS 14 Scribble to change the selection.
+  scribble,
 }
 
 /// Signature for the callback that reports when the caret location changes.

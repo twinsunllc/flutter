@@ -658,9 +658,11 @@ class TextEditingValue {
     this.text = '',
     this.selection = const TextSelection.collapsed(offset: -1),
     this.composing = TextRange.empty,
+    this.scribbleInProgress = false,
   }) : assert(text != null),
        assert(selection != null),
-       assert(composing != null);
+       assert(composing != null),
+       assert(scribbleInProgress != null);
 
   /// Creates an instance of this class from a JSON object.
   factory TextEditingValue.fromJSON(Map<String, dynamic> encoded) {
@@ -676,6 +678,7 @@ class TextEditingValue {
         start: encoded['composingBase'] as int? ?? -1,
         end: encoded['composingExtent'] as int? ?? -1,
       ),
+      scribbleInProgress: encoded['scribbleInProgress'] as bool? ?? false,
     );
   }
 
@@ -689,6 +692,7 @@ class TextEditingValue {
       'selectionIsDirectional': selection.isDirectional,
       'composingBase': composing.start,
       'composingExtent': composing.end,
+      'scribbleInProgress': scribbleInProgress,
     };
   }
 
@@ -701,6 +705,9 @@ class TextEditingValue {
   /// The range of text that is still being composed.
   final TextRange composing;
 
+  /// true if the update occurred during a scribble interaction
+  final bool scribbleInProgress;
+
   /// A value that corresponds to the empty string with no selection and no composing range.
   static const TextEditingValue empty = TextEditingValue();
 
@@ -709,11 +716,13 @@ class TextEditingValue {
     String? text,
     TextSelection? selection,
     TextRange? composing,
+    bool? scribbleInProgress,
   }) {
     return TextEditingValue(
       text: text ?? this.text,
       selection: selection ?? this.selection,
       composing: composing ?? this.composing,
+      scribbleInProgress: scribbleInProgress ?? this.scribbleInProgress,
     );
   }
 
@@ -738,7 +747,8 @@ class TextEditingValue {
     return other is TextEditingValue
         && other.text == text
         && other.selection == selection
-        && other.composing == composing;
+        && other.composing == composing
+        && other.scribbleInProgress == scribbleInProgress;
   }
 
   @override
@@ -746,6 +756,7 @@ class TextEditingValue {
     text.hashCode,
     selection.hashCode,
     composing.hashCode,
+    scribbleInProgress.hashCode,
   );
 }
 
@@ -825,6 +836,11 @@ abstract class TextInputClient {
   ///
   /// [TextInputClient] should cleanup its connection and finalize editing.
   void connectionClosed();
+
+  /// Requests that the client show the editing toolbar, for example when the
+  /// platform changes the selection through a non-flutter method such as
+  /// scribble.
+  void showToolbar();
 }
 
 /// An interface for interacting with a text input control.
@@ -1196,6 +1212,9 @@ class TextInput {
         break;
       case 'TextInputClient.showAutocorrectionPromptRect':
         _currentConnection!._client.showAutocorrectionPromptRect(args[1] as int, args[2] as int);
+        break;
+      case 'TextInputClient.showToolbar':
+        _currentConnection!._client.showToolbar();
         break;
       default:
         throw MissingPluginException();
