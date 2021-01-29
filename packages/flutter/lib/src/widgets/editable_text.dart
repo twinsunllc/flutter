@@ -2314,6 +2314,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       TextInput.registerScribbleElement(_elementIdentifier, [rect.left, rect.top, rect.width, rect.height], (x, y) {
         print('[scribble][flutter] focusCallback for $_elementIdentifier');
         widget.focusNode.requestFocus();
+        renderEditable.selectPositionAt(from: Offset(x, y), cause: SelectionChangedCause.keyboard);
       });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) { _updateScribbleRect(); });

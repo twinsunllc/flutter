@@ -1181,6 +1181,7 @@ class TextInput {
     }
 
     final List<dynamic> args = methodCall.arguments as List<dynamic>;
+    print('[scribble][flutter] $method: $args');
 
     if (method == 'TextInputClient.updateEditingStateWithTag') {
       final TextInputClient client = _currentConnection!._client;
