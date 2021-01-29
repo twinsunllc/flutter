@@ -1038,6 +1038,7 @@ RawFloatingCursorPoint _toTextPoint(FloatingCursorDragState state, Map<String, d
   return RawFloatingCursorPoint(offset: offset, state: state);
 }
 
+typedef void TextInputFocusCallback(double x, double y);
 /// An low-level interface to the system's text input control.
 ///
 /// See also:
@@ -1152,10 +1153,20 @@ class TextInput {
   TextInputConnection? _currentConnection;
   late TextInputConfiguration _currentConfiguration;
 
+  Map<String, TextInputFocusCallback> _focusCallbacks = {};
+
   Future<dynamic> _handleTextInputInvocation(MethodCall methodCall) async {
+    final String method = methodCall.method;
+    if (method == 'TextInputClient.focusElement') {
+      final List<dynamic> args = methodCall.arguments as List<dynamic>;
+      print('[scribble][flutter] $method: $args');
+      if (_focusCallbacks.containsKey(args[0])) {
+        _focusCallbacks[args[0]]?.call(args[1], args[2]);
+      }
+      return;
+    }
     if (_currentConnection == null)
       return;
-    final String method = methodCall.method;
 
     // The requestExistingInputState request needs to be handled regardless of
     // the client ID, as long as we have a _currentConnection.
@@ -1333,6 +1344,23 @@ class TextInput {
     TextInput._instance._channel.invokeMethod<void>(
       'TextInput.finishAutofillContext',
       shouldSave ,
+    );
+  }
+
+  /// TODO(fbcouch): Document
+  static void registerScribbleElement(String elementIdentifier, List<double> bounds, TextInputFocusCallback callback) {
+    TextInput._instance._focusCallbacks[elementIdentifier] = callback;
+    TextInput._instance._channel.invokeMethod<void>(
+      'TextInput.registerScribbleElement',
+      [elementIdentifier, ...bounds],
+    );
+  }
+  /// TODO(fbcouch): Document
+  static void deregisterScribbleElement(String elementIdentifier) {
+    TextInput._instance._focusCallbacks.remove(elementIdentifier);
+    TextInput._instance._channel.invokeMethod<void>(
+      'TextInput.deregisterScribbleElement',
+      [elementIdentifier],
     );
   }
 }

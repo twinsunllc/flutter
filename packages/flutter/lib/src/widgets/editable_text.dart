@@ -1535,6 +1535,8 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
         }
       });
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) { _updateScribbleRect(); });
   }
 
   @override
@@ -1601,6 +1603,9 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     WidgetsBinding.instance.removeObserver(this);
     _clipboardStatus?.removeListener(_onChangedClipboardStatus);
     _clipboardStatus?.dispose();
+    if (_elementIdentifier != null) {
+      TextInput.deregisterScribbleElement(_elementIdentifier);
+    }
     super.dispose();
   }
 
@@ -2289,6 +2294,29 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       SchedulerBinding.instance
           .addPostFrameCallback((Duration _) => _updateSizeAndTransform());
     }
+  }
+
+  String _elementIdentifier;
+  Rect _lastRect;
+
+  void _updateScribbleRect() {
+    if (_elementIdentifier == null) {
+      math.Random random = math.Random();
+      _elementIdentifier = random.nextInt(1<<32).toString().padLeft(10, '0');
+    }
+    RenderBox box = context.findRenderObject();
+    if (!mounted || !box.attached) return;
+    Offset topLeft = box.localToGlobal(Offset.zero);
+    Offset bottomRight = box.localToGlobal(Offset(box.size.width, box.size.height));
+    Rect rect = Rect.fromPoints(topLeft, bottomRight);
+    if (_lastRect == null || _lastRect != rect) {
+      _lastRect = rect;
+      TextInput.registerScribbleElement(_elementIdentifier, [rect.left, rect.top, rect.width, rect.height], (x, y) {
+        print('[scribble][flutter] focusCallback for $_elementIdentifier');
+        widget.focusNode.requestFocus();
+      });
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) { _updateScribbleRect(); });
   }
 
   TextDirection get _textDirection {
