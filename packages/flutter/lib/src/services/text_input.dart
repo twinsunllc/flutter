@@ -931,9 +931,7 @@ class TextInputConnection {
   List cachedTextBoxes = [];
 
   void setSelectionRects(List textBoxes) {
-    var equal = cachedTextBoxes.length == textBoxes.length &&
-        List.generate(textBoxes.length, (i) => textBoxes[i] == cachedTextBoxes[i]).reduce((a, b) => a && b);
-    if (!equal) {
+    if (!listEquals(cachedTextBoxes, textBoxes)) {
       cachedTextBoxes = textBoxes;
       TextInput._instance._setSelectionRects(textBoxes.map((box) {
         var rect = box.toRect();
