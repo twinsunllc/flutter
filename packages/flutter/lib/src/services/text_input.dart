@@ -2,17 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
-import 'dart:ui' show
-  FontWeight,
-  Offset,
-  Size,
-  TextAffinity,
-  TextAlign,
-  TextDirection,
-  hashValues;
+import 'dart:ui' show FontWeight, Offset, Size, TextAffinity, TextAlign, TextDirection, hashValues;
 
 import 'package:flutter/foundation.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
@@ -843,6 +836,16 @@ abstract class TextInputClient {
   void showToolbar();
 }
 
+abstract class ScribbleClient {
+  String get elementIdentifier;
+
+  void onScribbleFocus(double x, double y);
+
+  bool inScribbleRect(double x, double y, double width, double height);
+
+  List<double> get bounds;
+}
+
 /// An interface for interacting with a text input control.
 ///
 /// See also:
@@ -1038,7 +1041,6 @@ RawFloatingCursorPoint _toTextPoint(FloatingCursorDragState state, Map<String, d
   return RawFloatingCursorPoint(offset: offset, state: state);
 }
 
-typedef void TextInputFocusCallback(double x, double y);
 /// An low-level interface to the system's text input control.
 ///
 /// See also:
@@ -1153,20 +1155,23 @@ class TextInput {
   TextInputConnection? _currentConnection;
   late TextInputConfiguration _currentConfiguration;
 
-  Map<String, TextInputFocusCallback> _focusCallbacks = {};
+  Map<String, ScribbleClient> _scribbleClients = {};
 
   Future<dynamic> _handleTextInputInvocation(MethodCall methodCall) async {
     final String method = methodCall.method;
     if (method == 'TextInputClient.focusElement') {
       final List<dynamic> args = methodCall.arguments as List<dynamic>;
-      print('[scribble][flutter] $method: $args');
-      if (_focusCallbacks.containsKey(args[0])) {
-        _focusCallbacks[args[0]]?.call(args[1], args[2]);
+      if (_scribbleClients.containsKey(args[0])) {
+        _scribbleClients[args[0]]?.onScribbleFocus(args[1], args[2]);
       }
       return;
+    } else if (method == 'TextInputClient.requestElementsInRect') {
+      final List<dynamic> args = methodCall.arguments as List<dynamic>;
+      return _scribbleClients.keys.where((elementIdentifier) {
+        return _scribbleClients[elementIdentifier]?.inScribbleRect(args[0].toDouble(), args[1].toDouble(), args[2].toDouble(), args[3].toDouble()) ?? false;
+      }).map((elementIdentifier) => [elementIdentifier, ...(_scribbleClients[elementIdentifier]?.bounds ?? [])]).toList();
     }
-    if (_currentConnection == null)
-      return;
+    if (_currentConnection == null) return;
 
     // The requestExistingInputState request needs to be handled regardless of
     // the client ID, as long as we have a _currentConnection.
@@ -1200,8 +1205,7 @@ class TextInput {
 
     final int client = args[0] as int;
     // The incoming message was for a different client.
-    if (client != _currentConnection!._id)
-      return;
+    if (client != _currentConnection!._id) return;
     switch (method) {
       case 'TextInputClient.updateEditingState':
         _currentConnection!._client.updateEditingValue(TextEditingValue.fromJSON(args[1] as Map<String, dynamic>));
@@ -1210,8 +1214,7 @@ class TextInput {
         _currentConnection!._client.performAction(_toTextInputAction(args[1] as String));
         break;
       case 'TextInputClient.performPrivateCommand':
-        _currentConnection!._client.performPrivateCommand(
-          args[1]['action'] as String, args[1]['data'] as Map<String, dynamic>);
+        _currentConnection!._client.performPrivateCommand(args[1]['action'] as String, args[1]['data'] as Map<String, dynamic>);
         break;
       case 'TextInputClient.updateFloatingCursor':
         _currentConnection!._client.updateFloatingCursor(_toTextPoint(
@@ -1236,8 +1239,7 @@ class TextInput {
   bool _hidePending = false;
 
   void _scheduleHide() {
-    if (_hidePending)
-      return;
+    if (_hidePending) return;
     _hidePending = true;
 
     // Schedule a deferred task that hides the text input. If someone else
@@ -1245,8 +1247,7 @@ class TextInput {
     // nothing.
     scheduleMicrotask(() {
       _hidePending = false;
-      if (_currentConnection == null)
-        _channel.invokeMethod<void>('TextInput.hide');
+      if (_currentConnection == null) _channel.invokeMethod<void>('TextInput.hide');
     });
   }
 
@@ -1340,28 +1341,22 @@ class TextInput {
   ///
   /// * [AutofillGroup.onDisposeAction], a configurable action that runs when a
   ///   topmost [AutofillGroup] is getting disposed.
-  static void finishAutofillContext({ bool shouldSave = true }) {
+  static void finishAutofillContext({bool shouldSave = true}) {
     assert(shouldSave != null);
     TextInput._instance._channel.invokeMethod<void>(
       'TextInput.finishAutofillContext',
-      shouldSave ,
+      shouldSave,
     );
   }
 
-  /// TODO(fbcouch): Document
-  static void registerScribbleElement(String elementIdentifier, List<double> bounds, TextInputFocusCallback callback) {
-    TextInput._instance._focusCallbacks[elementIdentifier] = callback;
-    TextInput._instance._channel.invokeMethod<void>(
-      'TextInput.registerScribbleElement',
-      [elementIdentifier, ...bounds],
-    );
+  /// Registers a [ScribbleClient] with [elementIdentifier] that can be focused using an
+  /// UIIndirectScribbleInteraction on an iPad
+  static void registerScribbleElement(String elementIdentifier, ScribbleClient scribbleClient) {
+    TextInput._instance._scribbleClients[elementIdentifier] = scribbleClient;
   }
-  /// TODO(fbcouch): Document
+
+  /// Deregisters a [ScribbleClient] with [elementIdentifier]
   static void deregisterScribbleElement(String elementIdentifier) {
-    TextInput._instance._focusCallbacks.remove(elementIdentifier);
-    TextInput._instance._channel.invokeMethod<void>(
-      'TextInput.deregisterScribbleElement',
-      [elementIdentifier],
-    );
+    TextInput._instance._scribbleClients.remove(elementIdentifier);
   }
 }
