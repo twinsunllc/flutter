@@ -1715,7 +1715,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
 
     if (value.text == _value.text && value.composing == _value.composing) {
       // `selection` is the only change.
-      _handleSelectionChanged(value.selection, renderEditable, value.scribbleInProgress ? SelectionChangedCause.scribble : SelectionChangedCause.keyboard);
+      _handleSelectionChanged(value.selection, renderEditable, _textInputConnection?.scribbleInProgress ?? false ? SelectionChangedCause.scribble : SelectionChangedCause.keyboard);
     } else {
       hideToolbar();
       _currentPromptRectRange = null;
@@ -2424,14 +2424,11 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       final Matrix4 transform = renderEditable.getTransformTo(null);
       _textInputConnection!.setEditableSizeAndTransform(size, transform);
       final TextSpan textSpan = buildTextSpan();
-      final TextPainter? textPainter = renderEditable.textPainter;
-      if (textPainter != null) {
-        final List<Rect> rects = List<Rect>.generate(
-          textSpan.text?.length ?? 0, (int i) => textPainter.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect());
-        _textInputConnection!.setSelectionRects(rects);
-      } else {
-        _textInputConnection!.setSelectionRects(<Rect>[]);
-      }
+      var text = StringBuffer();
+      textSpan.computeToPlainText(text);
+      final List<Rect> rects = List<Rect>.generate(
+        text.length, (int i) => renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect());
+      _textInputConnection!.setSelectionRects(rects);
       SchedulerBinding.instance!
           .addPostFrameCallback((Duration _) => _updateSizeAndTransform());
     }
@@ -3080,6 +3077,8 @@ class _ScribbleElement extends StatefulWidget {
 }
 
 class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleClient {
+  _ScribbleElementState(): _elementIdentifier = (_nextElementIdentifier++).toString();
+
   @override
   void initState() {
     super.initState();
@@ -3089,45 +3088,38 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
   @override
   void dispose() {
     super.dispose();
-    TextInput.deregisterScribbleElement(elementIdentifier);
+    TextInput.unregisterScribbleElement(elementIdentifier);
   }
 
   RenderEditable? get renderEditable => widget.editableKey.currentContext?.findRenderObject() as RenderEditable?;
 
-  String? _elementIdentifier;
+  static int _nextElementIdentifier = 1;
+  String _elementIdentifier;
 
   @override
-  String get elementIdentifier {
-  if (_elementIdentifier == null) {
-      final math.Random random = math.Random();
-      _elementIdentifier = random.nextInt(1<<32).toString().padLeft(10, '0');
-    }
-    return _elementIdentifier!;
-  }
+  String get elementIdentifier => _elementIdentifier;
 
   @override
-  void onScribbleFocus(double x, double y) {
+  void onScribbleFocus(Offset offset) {
     widget.focusNode.requestFocus();
-    renderEditable?.selectPositionAt(from: Offset(x, y), cause: SelectionChangedCause.keyboard);
+    renderEditable?.selectPositionAt(from: offset, cause: SelectionChangedCause.keyboard);
   }
 
   @override
-  bool inScribbleRect(double x, double y, double width, double height) {
-    final List<double> _bounds = bounds;
-    if (_bounds.isEmpty)
+  bool isInScribbleRect(Rect rect) {
+    final Rect _bounds = bounds;
+    if (_bounds == Rect.zero)
       return false;
-    final Rect rect = Rect.fromLTWH(bounds[0], bounds[1], bounds[2], bounds[3]);
-    final Rect scribbleRect = Rect.fromLTWH(x, y, width, height);
-    return rect.overlaps(scribbleRect);
+    return _bounds.overlaps(rect);
   }
 
   @override
-  List<double> get bounds {
+  Rect get bounds {
     final RenderBox? box = context.findRenderObject() as RenderBox?;
     if (box == null || !mounted || !box.attached)
-      return <double>[];
+      return Rect.zero;
     final Offset topLeft = box.localToGlobal(Offset.zero);
-    return <double>[topLeft.dx, topLeft.dy, box.size.width, box.size.height];
+    return Rect.fromLTWH(topLeft.dx, topLeft.dy, box.size.width, box.size.height);
   }
 
   @override
