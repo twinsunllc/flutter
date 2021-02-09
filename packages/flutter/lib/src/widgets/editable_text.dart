@@ -1655,7 +1655,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       return;
     } else if (value.text == _value.text && value.composing == _value.composing && value.selection != _value.selection) {
       // `selection` is the only change.
-      _handleSelectionChanged(value.selection, renderEditable, value.scribbleInProgress ? SelectionChangedCause.scribble : SelectionChangedCause.keyboard);
+      _handleSelectionChanged(value.selection, renderEditable, _textInputConnection?.scribbleInProgress ?? false ? SelectionChangedCause.scribble : SelectionChangedCause.keyboard);
     } else {
       _formatAndSetValue(value);
     }
@@ -2282,9 +2282,11 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       final Size size = renderEditable.size;
       final Matrix4 transform = renderEditable.getTransformTo(null);
       _textInputConnection.setEditableSizeAndTransform(size, transform);
-      var textSpan = buildTextSpan();
-      var rects = List.generate(
-          textSpan.text.length, (i) => renderEditable.textPainter.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first);
+      final TextSpan textSpan = buildTextSpan();
+      var text = StringBuffer();
+      textSpan.computeToPlainText(text);
+      final List<Rect> rects = List<Rect>.generate(
+        text.length, (int i) => renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect());
       _textInputConnection.setSelectionRects(rects);
       SchedulerBinding.instance
           .addPostFrameCallback((Duration _) => _updateSizeAndTransform());
@@ -2909,6 +2911,8 @@ class _ScribbleElement extends StatefulWidget {
 }
 
 class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleClient {
+  _ScribbleElementState(): _elementIdentifier = (_nextElementIdentifier++).toString();
+
   @override
   void initState() {
     super.initState();
@@ -2918,43 +2922,38 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
   @override
   void dispose() {
     super.dispose();
-    TextInput.deregisterScribbleElement(elementIdentifier);
+    TextInput.unregisterScribbleElement(elementIdentifier);
   }
 
-  RenderEditable get renderEditable => widget.editableKey.currentContext.findRenderObject() as RenderEditable;
+  RenderEditable get renderEditable => widget.editableKey.currentContext?.findRenderObject() as RenderEditable;
 
+  static int _nextElementIdentifier = 1;
   String _elementIdentifier;
   
   @override
-  String get elementIdentifier {
-  if (_elementIdentifier == null) {
-      math.Random random = math.Random();
-      _elementIdentifier = random.nextInt(1<<32).toString().padLeft(10, '0');
-    }
-    return _elementIdentifier;
-  }
+  String get elementIdentifier => _elementIdentifier;
 
   @override
-  void onScribbleFocus(double x, double y) {
+  void onScribbleFocus(Offset offset) {
     widget.focusNode.requestFocus();
-    renderEditable.selectPositionAt(from: Offset(x, y), cause: SelectionChangedCause.keyboard);
+    renderEditable?.selectPositionAt(from: offset, cause: SelectionChangedCause.keyboard);
   }
 
   @override
-  bool inScribbleRect(double x, double y, double width, double height) {
-    List<double> _bounds = bounds;
-    if (_bounds == null) return false;
-    Rect rect = Rect.fromLTWH(bounds[0], bounds[1], bounds[2], bounds[3]);
-    Rect scribbleRect = Rect.fromLTWH(x, y, width, height);
-    return rect.overlaps(scribbleRect);
+  bool isInScribbleRect(Rect rect) {
+    final Rect _bounds = bounds;
+    if (_bounds == Rect.zero)
+      return false;
+    return _bounds.overlaps(rect);
   }
 
   @override
-  List<double> get bounds {
-    RenderBox box = context.findRenderObject();
-    if (!mounted || !box.attached) return null;
-    Offset topLeft = box.localToGlobal(Offset.zero);
-    return [topLeft.dx, topLeft.dy, box.size.width, box.size.height];
+  Rect get bounds {
+    final RenderBox box = context.findRenderObject() as RenderBox;
+    if (box == null || !mounted || !box.attached)
+      return Rect.zero;
+    final Offset topLeft = box.localToGlobal(Offset.zero);
+    return Rect.fromLTWH(topLeft.dx, topLeft.dy, box.size.width, box.size.height);
   }
 
   @override

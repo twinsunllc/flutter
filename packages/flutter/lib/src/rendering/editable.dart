@@ -853,7 +853,6 @@ class RenderEditable extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   /// The text to display.
   TextSpan? get text => _textPainter.text as TextSpan?;
   final TextPainter _textPainter;
-  TextPainter? get textPainter => _textPainter;
   set text(TextSpan? value) {
     if (_textPainter.text == value)
       return;
@@ -1361,6 +1360,9 @@ class RenderEditable extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       markNeedsSemanticsUpdate();
     }
   }
+
+  /// {@macro flutter.painting.textPainter.getBoxesForSelection}
+  List<TextBox> getBoxesForSelection(TextSelection selection) => _textPainter.getBoxesForSelection(selection);
 
   @override
   void describeSemanticsConfiguration(SemanticsConfiguration config) {
