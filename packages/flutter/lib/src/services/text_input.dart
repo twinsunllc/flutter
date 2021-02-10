@@ -1159,7 +1159,7 @@ class TextInput {
     if (method == 'TextInputClient.focusElement') {
       final List<dynamic> args = methodCall.arguments as List<dynamic>;
       if (_scribbleClients.containsKey(args[0])) {
-        _scribbleClients[args[0]]?.onScribbleFocus(Offset(args[1] as double, args[2] as double));
+        _scribbleClients[args[0]]?.onScribbleFocus(Offset(args[1].toDouble(), args[2].toDouble()));
       }
       return;
     } else if (method == 'TextInputClient.requestElementsInRect') {
