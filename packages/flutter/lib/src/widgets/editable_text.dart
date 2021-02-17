@@ -2944,7 +2944,24 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
     final Rect _bounds = bounds;
     if (_bounds == Rect.zero)
       return false;
-    return _bounds.overlaps(rect);
+    if (!_bounds.overlaps(rect))
+      return false;
+    Rect intersection = _bounds.intersect(rect);
+    return [
+      intersection.topLeft,
+      intersection.topCenter,
+      intersection.topRight,
+      intersection.centerLeft,
+      intersection.center,
+      intersection.centerRight,
+      intersection.bottomLeft,
+      intersection.bottomCenter,
+      intersection.bottomRight
+    ].any((Offset point) {
+      final result = HitTestResult();
+      WidgetsBinding.instance.hitTest(result, point);
+      return result.path.any((HitTestEntry entry) => entry.target == renderEditable);
+    });
   }
 
   @override

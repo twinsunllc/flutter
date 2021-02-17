@@ -923,13 +923,12 @@ class TextInputConnection {
     }
   }
 
-  List cachedTextBoxes = [];
+  List<Rect> cachedTextBoxes = [];
 
-  void setSelectionRects(List textBoxes) {
+  void setSelectionRects(List<Rect> textBoxes) {
     if (!listEquals(cachedTextBoxes, textBoxes)) {
       cachedTextBoxes = textBoxes;
-      TextInput._instance._setSelectionRects(textBoxes.map((box) {
-        var rect = box.toRect();
+      TextInput._instance._setSelectionRects(textBoxes.map((Rect rect) {
         return <double>[rect.left, rect.top, rect.width, rect.height];
       }).toList());
     }
@@ -1177,9 +1176,11 @@ class TextInput {
         return list.length == 5;
       }).toList();
     } else if (method == 'TextInputClient.scribbleInteractionBegan') {
-      _scribbleInProgress = false;
+      _scribbleInProgress = true;
+      return;
     } else if (method == 'TextInputClient.scribbleInteractionFinished') {
       _scribbleInProgress = false;
+      return;
     }
     if (_currentConnection == null) return;
 
