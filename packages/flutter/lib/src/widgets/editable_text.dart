@@ -2277,17 +2277,39 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     updateKeepAlive();
   }
 
+  String _cachedText = "";
+  double _cachedScrollOffset = 0.0;
+  Rect _cachedFirstRect;
+
+  void _updateSelectionRects() {
+    if (defaultTargetPlatform != TargetPlatform.iOS)
+      return;
+    final TextSpan textSpan = buildTextSpan();
+    var text = StringBuffer();
+    textSpan.computeToPlainText(text);
+    final Rect firstRect = renderEditable.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: 1)).first.toRect();
+    final double scrollOffset = _scrollController.offset;
+    if (_scrollController.position.userScrollDirection == ScrollDirection.idle && text.toString() != _cachedText ||
+        scrollOffset != _cachedScrollOffset ||
+        _cachedFirstRect != firstRect) {
+      _cachedText = text.toString();
+      _cachedScrollOffset = scrollOffset;
+      _cachedFirstRect = firstRect;
+      final Offset rectOffset = Offset(_isMultiline ? 0.0 : -1 * _scrollController.offset, _isMultiline ? -1 * _scrollController.offset : 0.0);
+      final List<Rect> rects = List<Rect>.generate(
+              text.length, (int i) => renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect())
+          .map((Rect rect) => rect.translate(rectOffset.dx, rectOffset.dy))
+          .toList();
+      _textInputConnection.setSelectionRects(rects);
+    }
+  }
+
   void _updateSizeAndTransform() {
     if (_hasInputConnection) {
       final Size size = renderEditable.size;
       final Matrix4 transform = renderEditable.getTransformTo(null);
       _textInputConnection.setEditableSizeAndTransform(size, transform);
-      final TextSpan textSpan = buildTextSpan();
-      var text = StringBuffer();
-      textSpan.computeToPlainText(text);
-      final List<Rect> rects = List<Rect>.generate(
-        text.length, (int i) => renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect());
-      _textInputConnection.setSelectionRects(rects);
+      _updateSelectionRects();
       SchedulerBinding.instance
           .addPostFrameCallback((Duration _) => _updateSizeAndTransform());
     }
