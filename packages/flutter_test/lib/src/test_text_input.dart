@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -242,5 +243,40 @@ class TestTextInput {
       ),
       (ByteData? data) { /* response from framework is discarded */ },
     );
+  }
+  
+  /// Simulates a Scribble focus
+  Future<void> scribbleFocusElement(String elementIdentifier, Offset offset) async {
+    assert(isRegistered);
+    await _binaryMessenger.handlePlatformMessage(
+      SystemChannels.textInput.name,
+      SystemChannels.textInput.codec.encodeMethodCall(
+        MethodCall(
+          'TextInputClient.focusElement',
+           <dynamic>[elementIdentifier, offset.dx, offset.dy]
+        ),
+      ),
+      (ByteData? data) { /* response from framework is discarded */ },
+    );
+  }
+
+  /// Simulates iOS asking for the list of Scribble elements during UIIndirectScribbleInteraction
+  Future<List<List<dynamic>>> scribbleRequestElementsInRect(Rect rect) async {
+    assert(isRegistered);
+    List<List<dynamic>> response = <List<dynamic>>[];
+    await _binaryMessenger.handlePlatformMessage(
+      SystemChannels.textInput.name,
+      SystemChannels.textInput.codec.encodeMethodCall(
+        MethodCall(
+          'TextInputClient.requestElementsInRect',
+           <dynamic>[rect.left, rect.top, rect.width, rect.height]
+        ),
+      ),
+      (ByteData? data) {
+        response = (SystemChannels.textInput.codec.decodeEnvelope(data!) as List<dynamic>).map((dynamic element) => element as List<dynamic>).toList();
+      },
+    );
+
+    return response;
   }
 }
