@@ -1495,7 +1495,9 @@ class RenderEditable extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
   }
 
-  /// {@macro flutter.painting.textPainter.getBoxesForSelection}
+  /// Returns a list of rects that bound the given selection.
+  ///
+  /// See [TextPainter.getBoxesForSelection] for more details
   List<TextBox> getBoxesForSelection(TextSelection selection) => _textPainter.getBoxesForSelection(selection);
 
   @override

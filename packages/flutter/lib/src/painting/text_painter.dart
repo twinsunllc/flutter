@@ -843,7 +843,6 @@ class TextPainter {
     _previousCaretPrototype = caretPrototype;
   }
 
-  /// {@template flutter.painting.textPainter.getBoxesForSelection}
   /// Returns a list of rects that bound the given selection.
   ///
   /// The [boxHeightStyle] and [boxWidthStyle] arguments may be used to select
@@ -854,7 +853,6 @@ class TextPainter {
   /// A given selection might have more than one rect if this text painter
   /// contains bidirectional text because logically contiguous text might not be
   /// visually contiguous.
-  /// {@endtemplate}
   List<TextBox> getBoxesForSelection(
     TextSelection selection, {
     ui.BoxHeightStyle boxHeightStyle = ui.BoxHeightStyle.tight,
