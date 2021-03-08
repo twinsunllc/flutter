@@ -20,6 +20,7 @@ import 'automatic_keep_alive.dart';
 import 'basic.dart';
 import 'binding.dart';
 import 'constants.dart';
+import 'container.dart';
 import 'debug.dart';
 import 'focus_manager.dart';
 import 'focus_scope.dart';
@@ -32,6 +33,7 @@ import 'scrollable.dart';
 import 'text.dart';
 import 'text_selection.dart';
 import 'ticker_provider.dart';
+import 'widget_span.dart';
 
 export 'package:flutter/rendering.dart' show SelectionChangedCause;
 export 'package:flutter/services.dart' show TextEditingValue, TextSelection, TextInputType, SmartQuotesType, SmartDashesType;
@@ -2277,28 +2279,28 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     updateKeepAlive();
   }
 
-  String _cachedText = "";
-  double _cachedScrollOffset = 0.0;
+  String _cachedText = '';
   Rect _cachedFirstRect;
 
   void _updateSelectionRects() {
     if (defaultTargetPlatform != TargetPlatform.iOS)
       return;
     final TextSpan textSpan = buildTextSpan();
-    var text = StringBuffer();
+    final StringBuffer text = StringBuffer();
     textSpan.computeToPlainText(text);
-    final Rect firstRect = renderEditable.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: 1)).first.toRect();
-    final double scrollOffset = _scrollController.offset;
-    if (_scrollController.position.userScrollDirection == ScrollDirection.idle && text.toString() != _cachedText ||
-        scrollOffset != _cachedScrollOffset ||
-        _cachedFirstRect != firstRect) {
+    final Rect firstRect = renderEditable.getBoxesForSelection(const TextSelection(baseOffset: 0, extentOffset: 1)).first;
+    final ScrollDirection scrollDirection = _scrollController?.position?.userScrollDirection ?? ScrollDirection.idle;
+    if (scrollDirection == ScrollDirection.idle && (text.toString() != _cachedText ||
+        _cachedFirstRect != firstRect)) {
       _cachedText = text.toString();
-      _cachedScrollOffset = scrollOffset;
       _cachedFirstRect = firstRect;
-      final Offset rectOffset = Offset(_isMultiline ? 0.0 : -1 * _scrollController.offset, _isMultiline ? -1 * _scrollController.offset : 0.0);
       final List<Rect> rects = List<Rect>.generate(
-              text.length, (int i) => renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first.toRect())
-          .map((Rect rect) => rect.translate(rectOffset.dx, rectOffset.dy))
+              text.length, (int i) {
+                Iterable<Rect> boxes = renderEditable.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1));
+                if (boxes.isEmpty) return null;
+                return boxes.first;
+              })
+          .where((box) => box != null)
           .toList();
       _textInputConnection.setSelectionRects(rects);
     }
@@ -2381,6 +2383,27 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     } else {
       showToolbar();
     }
+  }
+
+  int _placeholderLocation = -1;
+  Size _placeholderSize = Size.zero;
+
+  @override
+  void insertTextPlaceholder(Size size) {
+    print('[scribble][flutter] insertTextPlaceholder $size');
+    setState(() {
+      _placeholderLocation = _value.text.length - widget.controller.selection.end;
+      _placeholderSize = size;
+    });
+  }
+
+  @override
+  void removeTextPlaceholder() {
+    print('[scribble][flutter] removeTextPlaceholder');
+    setState(() {
+      _placeholderLocation = -1;
+      _placeholderSize = Size.zero;
+    });
   }
 
   @override
@@ -2546,6 +2569,30 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       }
       return TextSpan(style: widget.style, text: text);
     }
+    if (_placeholderLocation >= 0 && _placeholderLocation <= _value.text.length) {
+      List<_ScribblePlaceholder> placeholders = [];
+      final int placeholderLocation = _value.text.length - _placeholderLocation;
+      if (_placeholderSize.height > 0) {
+        Rect selectionBox;
+        if (renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation, extentOffset: placeholderLocation + 1)).isEmpty) {
+          selectionBox = renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation - 1, extentOffset: placeholderLocation)).first;
+        } else {
+          selectionBox = renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation, extentOffset: placeholderLocation + 1)).first;
+        }
+        final Offset topLeft = renderEditable.globalToLocal(selectionBox.topLeft);
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(renderEditable.size.width - topLeft.dx - selectionBox.width, 0.0)));
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(topLeft.dx - selectionBox.width, 0.0)));
+      } else {
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: _placeholderSize));
+      }
+      return TextSpan(style: widget.style, children: [
+          TextSpan(text: _value.text.substring(0, placeholderLocation)),
+          ...placeholders,
+          TextSpan(text: _value.text.substring(placeholderLocation)),
+        ],
+      );
+    }
+
     // Read only mode should not paint text composing.
     return widget.controller.buildTextSpan(
       style: widget.style,
@@ -2968,7 +3015,7 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
       return false;
     if (!_bounds.overlaps(rect))
       return false;
-    Rect intersection = _bounds.intersect(rect);
+    final Rect intersection = _bounds.intersect(rect);
     return [
       intersection.topLeft,
       intersection.topCenter,
@@ -2980,7 +3027,7 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
       intersection.bottomCenter,
       intersection.bottomRight
     ].any((Offset point) {
-      final result = HitTestResult();
+      final HitTestResult result = HitTestResult();
       WidgetsBinding.instance.hitTest(result, point);
       return result.path.any((HitTestEntry entry) => entry.target == renderEditable);
     });
@@ -2998,5 +3045,54 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
   @override
   Widget build(BuildContext context) {
     return widget.child;
+  }
+}
+
+class _ScribblePlaceholder extends WidgetSpan {
+  final Size size;
+
+  const _ScribblePlaceholder({
+    @required Widget child,
+    ui.PlaceholderAlignment alignment = ui.PlaceholderAlignment.bottom,
+    TextBaseline baseline,
+    TextStyle style,
+    @required this.size,
+  }) : assert(child != null),
+       assert(baseline != null || !(
+         identical(alignment, ui.PlaceholderAlignment.aboveBaseline) ||
+         identical(alignment, ui.PlaceholderAlignment.belowBaseline) ||
+         identical(alignment, ui.PlaceholderAlignment.baseline)
+       )),
+       super(
+         alignment: alignment,
+         baseline: baseline,
+         style: style,
+         child: child,
+       );
+
+  /// Adds a placeholder box to the paragraph builder if a size has been
+  /// calculated for the widget.
+  ///
+  /// Sizes are provided through `dimensions`, which should contain a 1:1
+  /// in-order mapping of widget to laid-out dimensions. If no such dimension
+  /// is provided, the widget will be skipped.
+  ///
+  /// The `textScaleFactor` will be applied to the laid-out size of the widget.
+  @override
+  void build(ui.ParagraphBuilder builder, { double textScaleFactor = 1.0, List<PlaceholderDimensions> dimensions }) {
+    assert(debugAssertIsValid());
+    final bool hasStyle = style != null;
+    if (hasStyle) {
+      builder.pushStyle(style.getTextStyle(textScaleFactor: textScaleFactor));
+    }
+    builder.addPlaceholder(
+      size.width,
+      size.height,
+      alignment,
+      scale: textScaleFactor,
+    );
+    if (hasStyle) {
+      builder.pop();
+    }
   }
 }

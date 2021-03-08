@@ -823,6 +823,12 @@ abstract class TextInputClient {
   /// platform changes the selection through a non-flutter method such as
   /// scribble.
   void showToolbar();
+
+  /// UIKit has requested a text placeholder be added at the current selection
+  void insertTextPlaceholder(Size size);
+
+  /// UIKit has requested that the text placeholder be removed
+  void removeTextPlaceholder();
 }
 
 abstract class ScribbleClient {
@@ -923,11 +929,11 @@ class TextInputConnection {
     }
   }
 
-  List<Rect> cachedTextBoxes = [];
+  List<Rect> _cachedTextBoxes = [];
 
   void setSelectionRects(List<Rect> textBoxes) {
-    if (!listEquals(cachedTextBoxes, textBoxes)) {
-      cachedTextBoxes = textBoxes;
+    if (!listEquals(_cachedTextBoxes, textBoxes)) {
+      _cachedTextBoxes = textBoxes;
       TextInput._instance._setSelectionRects(textBoxes.map((Rect rect) {
         return <double>[rect.left, rect.top, rect.width, rect.height];
       }).toList());
@@ -1241,6 +1247,12 @@ class TextInput {
         break;
       case 'TextInputClient.showToolbar':
         _currentConnection!._client.showToolbar();
+        break;
+      case 'TextInputClient.insertTextPlaceholder':
+        _currentConnection!._client.insertTextPlaceholder(Size(args[1].toDouble() as double, args[2].toDouble() as double));
+        break;
+      case 'TextInputClient.removeTextPlaceholder':
+        _currentConnection!._client.removeTextPlaceholder();
         break;
       default:
         throw MissingPluginException();
