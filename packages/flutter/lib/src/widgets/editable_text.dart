@@ -2353,6 +2353,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
   ///
   /// Returns `false` if a toolbar couldn't be shown, such as when the toolbar
   /// is already shown, or when no text selection currently exists.
+  @override
   bool showToolbar() {
     // Web is using native dom elements to enable clipboard functionality of the
     // toolbar: copy, paste, select, cut. It might also provide additional
@@ -2392,7 +2393,7 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
   void insertTextPlaceholder(Size size) {
     print('[scribble][flutter] insertTextPlaceholder $size');
     setState(() {
-      _placeholderLocation = _value.text.length - widget.controller.selection.end;
+      _placeholderLocation = _value.text.length - widget.controller.selection.end; // TODO(fbcouch): port to PR
       _placeholderSize = size;
     });
   }
@@ -2572,16 +2573,16 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     if (_placeholderLocation >= 0 && _placeholderLocation <= _value.text.length) {
       List<_ScribblePlaceholder> placeholders = [];
       final int placeholderLocation = _value.text.length - _placeholderLocation;
-      if (_placeholderSize.height > 0) {
+      if (_isMultiline) { // TODO(fbcouch): port to PR
         Rect selectionBox;
         if (renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation, extentOffset: placeholderLocation + 1)).isEmpty) {
           selectionBox = renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation - 1, extentOffset: placeholderLocation)).first;
         } else {
           selectionBox = renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation, extentOffset: placeholderLocation + 1)).first;
         }
-        final Offset topLeft = renderEditable.globalToLocal(selectionBox.topLeft);
-        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(renderEditable.size.width - topLeft.dx - selectionBox.width, 0.0)));
-        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(topLeft.dx - selectionBox.width, 0.0)));
+        // TODO(fbcouch) fix topLeft in PR
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(renderEditable.size.width - selectionBox.topLeft.dx - selectionBox.width, 0.0)));
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(selectionBox.topLeft.dx - selectionBox.width, 0.0)));
       } else {
         placeholders.add(_ScribblePlaceholder(child: Container(), size: _placeholderSize));
       }
