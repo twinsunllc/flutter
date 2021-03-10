@@ -2546,14 +2546,12 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
   }
 
   int _placeholderLocation = -1;
-  Size _placeholderSize = Size.zero;
 
   @override
   void insertTextPlaceholder(Size size) {
     print('[scribble][flutter] insertTextPlaceholder $size');
     setState(() {
-      _placeholderLocation = _cachedText.length - widget.controller.selection.end;
-      _placeholderSize = size;
+      _placeholderLocation = _value.text.length - widget.controller.selection.end;
     });
   }
 
@@ -2562,7 +2560,6 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
     print('[scribble][flutter] removeTextPlaceholder');
     setState(() {
       _placeholderLocation = -1;
-      _placeholderSize = Size.zero;
     });
   }
 
@@ -2730,17 +2727,16 @@ class EditableTextState extends State<EditableText> with AutomaticKeepAliveClien
       return TextSpan(style: widget.style, text: text);
     }
     if (_placeholderLocation >= 0 && _placeholderLocation <= _value.text.length) {
-      List<_ScribblePlaceholder> placeholders = [];
+      final List<_ScribblePlaceholder> placeholders = <_ScribblePlaceholder>[];
       final int placeholderLocation = _value.text.length - _placeholderLocation;
-      if (_placeholderSize.height > 0) {
+      if (_isMultiline) {
         final Rect selectionBox = renderEditable.getBoxesForSelection(TextSelection(baseOffset: placeholderLocation, extentOffset: placeholderLocation + 1)).first;
-        final Offset topLeft = renderEditable.globalToLocal(selectionBox.topLeft);
-        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(renderEditable.size.width - topLeft.dx - selectionBox.width, 0.0)));
-        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(topLeft.dx - selectionBox.width, 0.0)));
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(renderEditable.size.width - selectionBox.topLeft.dx - selectionBox.width, 0.0)));
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: Size(selectionBox.topLeft.dx - selectionBox.width, 0.0)));
       } else {
-        placeholders.add(_ScribblePlaceholder(child: Container(), size: _placeholderSize));
+        placeholders.add(_ScribblePlaceholder(child: Container(), size: const Size(100.0, 0.0)));
       }
-      return TextSpan(style: widget.style, children: [
+      return TextSpan(style: widget.style, children: <InlineSpan>[
           TextSpan(text: _value.text.substring(0, placeholderLocation)),
           ...placeholders,
           TextSpan(text: _value.text.substring(placeholderLocation)),
@@ -3207,8 +3203,6 @@ class _ScribbleElementState extends State<_ScribbleElement> implements ScribbleC
 }
 
 class _ScribblePlaceholder extends WidgetSpan {
-  final Size size;
-
   const _ScribblePlaceholder({
     required Widget child,
     ui.PlaceholderAlignment alignment = ui.PlaceholderAlignment.bottom,
@@ -3227,6 +3221,9 @@ class _ScribblePlaceholder extends WidgetSpan {
          style: style,
          child: child,
        );
+
+  /// The size of the span, used in place of adding a placeholder size to the [TextPainter]
+  final Size size;
 
   /// Adds a placeholder box to the paragraph builder if a size has been
   /// calculated for the widget.
